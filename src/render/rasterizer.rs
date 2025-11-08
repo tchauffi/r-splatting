@@ -1,9 +1,9 @@
 //! CPU-based Gaussian rasterizer
 
+use nalgebra::{Matrix4, Vector2, Vector3, Matrix2};
 use crate::core::gaussian::{Gaussian2D, Gaussian3D};
 use crate::core::projection::project_gaussian_orthographic;
-use crate::image::PPMImage;
-use nalgebra::{Matrix2, Matrix4, Vector2, Vector3};
+use crate::image::ImageBuffer;
 
 pub struct Rasterizer {
     width: usize,
@@ -44,8 +44,8 @@ impl Rasterizer {
     }
 
     /// Render scene of 3D Gaussians to image
-    pub fn render(&self, gaussians: &[Gaussian3D], view_matrix: &Matrix4<f32>) -> PPMImage {
-        let mut image = PPMImage::new(self.width, self.height);
+    pub fn render(&self, gaussians: &[Gaussian3D], view_matrix: &Matrix4<f32>) -> ImageBuffer {
+        let mut image = ImageBuffer::new(self.width, self.height);
 
         // Project all Gaussians to 2D
         let mut gaussians_2d: Vec<Gaussian2D> = gaussians
@@ -90,5 +90,59 @@ impl Rasterizer {
         }
 
         image
+    }
+
+    /// Render and return both image and 2D gaussians for backward pass
+    pub fn render_with_gaussians_2d(
+        &self,
+        gaussians: &[Gaussian3D],
+        view_matrix: &Matrix4<f32>,
+    ) -> (ImageBuffer, Vec<Gaussian2D>) {
+        let mut image = ImageBuffer::new(self.width, self.height);
+
+        // Project all Gaussians to 2D
+        let mut gaussians_2d: Vec<Gaussian2D> = gaussians
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, g)| {
+                project_gaussian_orthographic(g, view_matrix).map(|mut g2d| {
+                    g2d.source_idx = idx;
+                    g2d
+                })
+            })
+            .collect();
+
+        // Sort front to back
+        gaussians_2d.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap());
+
+        // Render (same as before)
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let px = (x as f32 / self.width as f32) * 2.0 - 1.0;
+                let py = 1.0 - (y as f32 / self.height as f32) * 2.0;
+                let point = Vector2::new(px, py);
+
+                let mut color = Vector3::zeros();
+                let mut transmittance = 1.0f32;
+
+                for gaussian in &gaussians_2d {
+                    if transmittance < 0.001 {
+                        break;
+                    }
+
+                    let alpha = Self::evaluate_gaussian_2d(gaussian, point);
+
+                    if alpha > 1e-4 {
+                        color += transmittance * alpha * gaussian.color;
+                        transmittance *= 1.0 - alpha;
+                    }
+                }
+
+                color += transmittance * Vector3::new(1.0, 1.0, 1.0);
+                image.set_pixel(x, y, color);
+            }
+        }
+
+        (image, gaussians_2d)
     }
 }

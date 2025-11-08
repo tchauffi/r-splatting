@@ -1,5 +1,5 @@
-//! Image output utilities
+//! Image utilities
 
-pub mod ppm;
+pub mod image_buffer;
 
-pub use ppm::PPMImage;
+pub use image_buffer::ImageBuffer;
