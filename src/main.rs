@@ -1,50 +1,60 @@
-use nalgebra::{Vector3, UnitQuaternion, Matrix4};
-use r_splatting::{Gaussian3D, Rasterizer};
+use nalgebra::{Vector3, UnitQuaternion};
+use r_splatting::{Gaussian3D, Rasterizer, Camera};
+
+fn create_test_scene() -> Vec<Gaussian3D> {
+    let mut gaussians = Vec::new();
+    
+    // Create a grid of Gaussians
+    for i in -2..=2 {
+        for j in -2..=2 {
+            let x = i as f32 * 0.5;
+            let y = j as f32 * 0.5;
+            let z = -3.0 - (i * i + j * j) as f32 * 0.1;
+            
+            let color = Vector3::new(
+                (i + 2) as f32 / 4.0,
+                (j + 2) as f32 / 4.0,
+                0.5,
+            );
+            
+            gaussians.push(Gaussian3D::new(
+                Vector3::new(x, y, z),
+                Vector3::new(0.2, 0.2, 0.2),
+                UnitQuaternion::identity(),
+                1.0,
+                color,
+            ));
+        }
+    }
+    
+    gaussians
+}
 
 fn main() {
     println!("Creating simple Gaussian Splatting scene...");
     
-    // Create a few Gaussians
-    let mut gaussians = Vec::new();
+    // Create scene
+    let gaussians = create_test_scene();
     
-    // Red Gaussian
-    gaussians.push(Gaussian3D::new(
-        Vector3::new(-0.5, 0.0, -2.0),
-        
-        Vector3::new(0.3, 0.3, 0.3),
-        UnitQuaternion::identity(),
-        0.8,
-        Vector3::new(1.0, 0.0, 0.0), // Red
-    ));
-    
-    // Green Gaussian
-    gaussians.push(Gaussian3D::new(
-        Vector3::new(0.5, 0.0, -2.0),
-        Vector3::new(0.3, 0.3, 0.3),
-        UnitQuaternion::identity(),
-        0.8,
-        Vector3::new(0.0, 1.0, 0.0), // Green
-    ));
-    
-    // Blue Gaussian (in front)
-    gaussians.push(Gaussian3D::new(
-        Vector3::new(0.0, 0.3, -1.5),
-        Vector3::new(0.4, 0.4, 0.4),
-        UnitQuaternion::identity(),
-        0.6,
-        Vector3::new(0.0, 0.0, 1.0), // Blue
-    ));
+    // Create camera
+    let camera = Camera::new(800, 600);
+    println!("Camera position: {:?}", camera.position);
+    println!("Camera target: {:?}", camera.target);
+    println!("FOV: {:.1}°", camera.fov.to_degrees());
     
     // Create rasterizer
     let rasterizer = Rasterizer::new(800, 600);
     
-    // Simple view matrix (identity for now)
-    let view_matrix = Matrix4::identity();
+    // Get view matrix from camera
+    let view_matrix = camera.view_matrix();
     
     // Render
     println!("Rendering...");
+    let start = std::time::Instant::now();
     let image = rasterizer.render(&gaussians, &view_matrix);
-    
+    let duration = start.elapsed();
+    println!("Render time: {:.3} ms", duration.as_secs_f64() * 1000.0);
+
     // Save to PPM
     println!("Writing output.ppm...");
     image.write_ppm("output.ppm").expect("Failed to write image");
