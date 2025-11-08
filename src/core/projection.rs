@@ -6,8 +6,9 @@ pub fn project_gaussian_perspective(
     gaussian: &Gaussian3D,
     view_matrix: &Matrix4<f32>,
     proj_matrix: &Matrix4<f32>,
-    viewport_width: f32,
+    _viewport_width: f32,
     viewport_height: f32,
+    idx: usize,
 ) -> Option<Gaussian2D> {
     // Transform to view space
     let pos_view = view_matrix.transform_point(&gaussian.mean.into());
@@ -67,6 +68,7 @@ pub fn project_gaussian_perspective(
         opacity: gaussian.opacity,
         color: gaussian.color,
         depth: -pos_view.z,
+        source_idx: idx,
     })
 }
 
@@ -101,5 +103,6 @@ pub fn project_gaussian_orthographic(
         opacity: gaussian.opacity,
         color: gaussian.color,
         depth: pos_view.z,
+        source_idx: 0, // Placeholder, will set later
     })
 }
